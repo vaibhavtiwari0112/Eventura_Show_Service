@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -33,8 +34,8 @@ public class ShowService {
     public ShowService(ShowRepository showRepository,
                        RestTemplate restTemplate,
                        RedisTemplate<String, Object> redisTemplate,
-                       @Value("${catalog.url:http://localhost:8083}") String catalogUrl,
-                       @Value("${booking.url:http://localhost:8082/api}") String bookingUrl) {
+                       @Value("${catalog.url}") String catalogUrl,
+                       @Value("${booking.url}") String bookingUrl) {
         this.showRepository = showRepository;
         this.restTemplate = restTemplate;
         this.redisTemplate = redisTemplate;
@@ -351,19 +352,28 @@ public class ShowService {
     public List<ShowResponseDTO> getShowsByMovie(UUID movieId) {
         List<Show> shows = showRepository.findByMovieId(movieId);
 
-        // 🔹 Fetch only movie title once
         String movieTitle = null;
         try {
             String movieUrl = catalogUrl + "/catalog/movies/" + movieId;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> movieMap = restTemplate.getForObject(movieUrl, Map.class);
+            ResponseEntity<Map> response = restTemplate.getForEntity(movieUrl, Map.class);
 
-            if (movieMap != null) {
-                Object titleObj = movieMap.getOrDefault("title", movieMap.get("name"));
-                if (titleObj != null) movieTitle = titleObj.toString();
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> movieMap = response.getBody();
+                log.info("Fetched movie from catalog: {}", movieMap);
+
+                Object titleObj = movieMap.get("title");
+                if (titleObj == null) titleObj = movieMap.get("name");
+
+                if (titleObj != null) {
+                    movieTitle = titleObj.toString();
+                } else {
+                    log.warn("Movie {} found but title key missing", movieId);
+                }
             } else {
-                log.warn("Catalog returned null for movie {}", movieId);
+                log.warn("Catalog responded {} for movie {}", response.getStatusCode(), movieId);
             }
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("Movie {} not found in catalog", movieId);
         } catch (RestClientException e) {
             log.error("Failed to fetch movie {} from catalog: {}", movieId, e.getMessage());
         }
