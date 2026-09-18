@@ -30,8 +30,8 @@ public class Show {
     @Column(name = "base_price", nullable = false)
     private BigDecimal basePrice;
 
-    // ✅ available seats go into a separate join table
-    @ElementCollection(fetch = FetchType.EAGER) // eager so they load automatically
+    
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "show_available_seats",
             joinColumns = @JoinColumn(name = "show_id")
@@ -39,7 +39,6 @@ public class Show {
     @Column(name = "seat_id", nullable = false)
     private List<String> availableSeats = new ArrayList<>();
 
-    // ✅ booked seats go into a separate join table
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "show_booked_seats",
@@ -58,11 +57,10 @@ public class Show {
 
     @Version
     @Column(name = "version", nullable = false)
-    private Long version; // managed by Hibernate
+    private Long version;
 
     public Show() {}
 
-    // --- Getters and Setters ---
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -101,23 +99,3 @@ public class Show {
         this.lockedSeats = lockedSeats;
     }
 }
-
-
-/*
-* -- ensure the extension (run once)
-CREATE EXTENSION IF NOT EXISTS btree_gist;
-
--- add a generated range column representing [start_time, end_time)
-ALTER TABLE shows
-  ADD COLUMN IF NOT EXISTS time_range tstzrange
-    GENERATED ALWAYS AS (tstzrange(start_time, end_time, '[]')) STORED;
-
--- create an exclusion constraint to prevent overlapping ranges for same hall
-ALTER TABLE shows
-  ADD CONSTRAINT shows_no_overlap_in_hall
-  EXCLUDE USING gist (
-    hall_id WITH =,
-    time_range WITH &&
-  );
-
-* */
