@@ -13,7 +13,7 @@ public class Show {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
-    private UUID id;  // UUID set manually in service
+    private UUID id;  
 
     @Column(name = "movie_id", nullable = false)
     private UUID movieId;
